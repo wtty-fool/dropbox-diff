@@ -40,7 +40,8 @@ func readToken(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(raw), nil
+	token := strings.TrimSpace(string(raw))
+	return token, nil
 }
 
 func main() {
@@ -73,7 +74,7 @@ func main() {
 
 		_, ok := dropboxFileMap[strings.ToLower(f.Name())]
 		if !ok {
-			fmt.Printf(path.Join(localDir, f.Name()))
+			fmt.Println(path.Join(localDir, f.Name()))
 		}
 	}
 

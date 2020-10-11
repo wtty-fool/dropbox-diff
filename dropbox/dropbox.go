@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 )
 
@@ -55,11 +56,21 @@ func ListDropboxDir(path string, token string, dropboxOptions ...droboxOption) (
 	if err != nil {
 		return []DropboxFile{}, err
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return []DropboxFile{}, fmt.Errorf("Request failed: [%d] %s", resp.StatusCode, resp.Status)
+	}
 
 	var data response
-	err = json.Unmarshal(resp.Body, &data)
-	if err != nil {
-		return []DropboxFile{}, err
+	{
+		respBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return []DropboxFile{}, err
+		}
+		err = json.Unmarshal(respBytes, &data)
+		if err != nil {
+			return []DropboxFile{}, err
+		}
 	}
 
 	return data.Entries, nil
