@@ -92,7 +92,10 @@ func ListDropboxDir(path string, token string, dropboxOptions ...droboxOption) (
 		rawBody := map[string]string{
 			"cursor": fileList.Cursor,
 		}
-		respBytes, err := makeRequest(http.MethodPost, listDirURL, commonHeaders, rawBody)
+		respBytes, err := makeRequest(http.MethodPost, listContinueURL, commonHeaders, rawBody)
+		if err != nil {
+			return []DropboxFile{}, err
+		}
 		err = json.Unmarshal(respBytes, &fileList)
 		if err != nil {
 			return []DropboxFile{}, err
