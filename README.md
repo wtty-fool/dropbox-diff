@@ -9,3 +9,4 @@ and local directory, without a need to download the files first.
 drobox-diff --dropbox /pictures/mountains ~/pictures/trip-to-vermont
 ```
 
+Requires OAuth2 access token in `token` file. You can generate one at https://www.dropbox.com/developers/apps/.
