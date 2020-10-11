@@ -9,13 +9,15 @@ import (
 )
 
 var (
+	client = &http.Client{}
 	// https://dropbox.github.io/dropbox-api-v2-explorer/#files_list_folder
 	OptionRecursive        = droboxOption{"recursive", true}
 	OptionIncludeMediaInfo = droboxOption{"include_media_info", true}
 )
 
 const (
-	listDirURL = "https://api.dropboxapi.com/2/files/list_folder"
+	listDirURL      = "https://api.dropboxapi.com/2/files/list_folder"
+	listContinueURL = "https://api.dropboxapi.com/2/files/list_folder/continue"
 )
 
 type response struct {
@@ -31,49 +33,77 @@ type DropboxFile struct {
 	PathDisplay string `json:"path_display"`
 }
 
-func ListDropboxDir(path string, token string, dropboxOptions ...droboxOption) ([]DropboxFile, error) {
-	rawBody := map[string]interface{}{
-		"path": path,
-	}
-	for _, option := range dropboxOptions {
-		rawBody[option.Key] = option.Value
-	}
-
-	body, err := json.Marshal(rawBody)
+func makeRequest(method string, url string, headers map[string]string, data interface{}) ([]byte, error) {
+	body, err := json.Marshal(data)
 	if err != nil {
-		return []DropboxFile{}, err
+		return []byte{}, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, listDirURL, bytes.NewBuffer(body))
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
 	if err != nil {
-		return []DropboxFile{}, err
+		return []byte{}, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
-	client := &http.Client{}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		return []DropboxFile{}, err
+		return []byte{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return []DropboxFile{}, fmt.Errorf("Request failed: [%d] %s", resp.StatusCode, resp.Status)
+		return []byte{}, fmt.Errorf("Request failed: [%d] %s", resp.StatusCode, resp.Status)
 	}
 
-	var data response
+	return ioutil.ReadAll(resp.Body)
+}
+
+func ListDropboxDir(path string, token string, dropboxOptions ...droboxOption) ([]DropboxFile, error) {
+	commonHeaders := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": fmt.Sprintf("Bearer %s", token),
+	}
+
+	var fileList response
 	{
-		respBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return []DropboxFile{}, err
+		rawBody := map[string]interface{}{
+			"path": path,
 		}
-		err = json.Unmarshal(respBytes, &data)
+		for _, option := range dropboxOptions {
+			rawBody[option.Key] = option.Value
+		}
+
+		respBytes, err := makeRequest(http.MethodPost, listDirURL, commonHeaders, rawBody)
+		err = json.Unmarshal(respBytes, &fileList)
 		if err != nil {
 			return []DropboxFile{}, err
 		}
 	}
 
-	return data.Entries, nil
+	output := []DropboxFile{}
+	for _, entry := range fileList.Entries {
+		output = append(output, entry)
+	}
+
+	hasMore := fileList.HasMore
+	for hasMore {
+		rawBody := map[string]string{
+			"cursor": fileList.Cursor,
+		}
+		respBytes, err := makeRequest(http.MethodPost, listDirURL, commonHeaders, rawBody)
+		err = json.Unmarshal(respBytes, &fileList)
+		if err != nil {
+			return []DropboxFile{}, err
+		}
+		for _, entry := range fileList.Entries {
+			output = append(output, entry)
+		}
+		hasMore = fileList.HasMore
+	}
+
+	return output, nil
 }
 
 type droboxOption struct {
