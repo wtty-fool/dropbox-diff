@@ -27,7 +27,7 @@ type response struct {
 }
 
 type DropboxFile struct {
-	Tag         string `json:"tag"`
+	Tag         string `json:".tag"`
 	Name        string `json:"name"`
 	PathLower   string `json:"path_lower"`
 	PathDisplay string `json:"path_display"`
